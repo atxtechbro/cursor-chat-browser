@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import path from 'path'
 import fs from 'fs/promises'
+import sqlite3 from 'sqlite3'
+import { open } from 'sqlite'
 import { existsSync } from 'fs'
 
 export async function GET(

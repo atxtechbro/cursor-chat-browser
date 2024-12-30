@@ -20,14 +20,17 @@ export async function GET() {
   try {
     const workspacePath = process.env.WORKSPACE_PATH || ''
     const logs: WorkspaceLog[] = []
-    
+
+    // Add global storage path
+    const globalDbPath = path.join(workspacePath, '..', 'globalStorage', 'state.vscdb')
+
     const entries = await fs.readdir(workspacePath, { withFileTypes: true })
-    
+
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const dbPath = path.join(workspacePath, entry.name, 'state.vscdb')
         const workspaceJsonPath = path.join(workspacePath, entry.name, 'workspace.json')
-        
+
         if (!existsSync(dbPath)) continue
 
         let workspaceFolder = undefined
@@ -73,18 +76,35 @@ export async function GET() {
 
         if (composerResult?.value) {
           const composerData = JSON.parse(composerResult.value)
-          if (composerData.allComposers && Array.isArray(composerData.allComposers)) {
-            const composerLogs = composerData.allComposers.map((composer: ComposerChat) => ({
-              id: composer.composerId || '',
-              workspaceId: entry.name,
-              workspaceFolder,
-              title: composer.text || `Composer ${(composer.composerId || '').slice(0, 8)}`,
-              timestamp: composer.lastUpdatedAt || composer.createdAt || Date.now(),
-              type: 'composer' as const,
-              messageCount: composer.conversation?.length || 0
-            }))
-            logs.push(...composerLogs)
+          const globalDb = await open({
+            filename: globalDbPath,
+            driver: sqlite3.Database
+          })
+
+          // Get full conversation data from global storage
+          for (const composer of composerData.allComposers) {
+            const globalResult = await globalDb.get(`
+              SELECT value FROM cursorDiskKV 
+              WHERE key = ?
+            `, [`composerData:${composer.composerId}`])
+
+            if (globalResult?.value) {
+              const fullData = JSON.parse(globalResult.value)
+              const isEditorChat = fullData.conversation?.[0]?.context?.fileSelections?.length > 0
+
+              logs.push({
+                id: composer.composerId,
+                workspaceId: entry.name,
+                workspaceFolder,
+                title: composer.text || `${isEditorChat ? 'Composer' : 'Chat'} ${composer.composerId.slice(0, 8)}`,
+                timestamp: composer.lastUpdatedAt || composer.createdAt || Date.now(),
+                type: isEditorChat ? 'composer' : 'chat',
+                messageCount: fullData.conversation?.length || 0
+              })
+            }
           }
+
+          await globalDb.close()
         }
 
         await db.close()
@@ -93,7 +113,7 @@ export async function GET() {
 
     // Sort all logs by timestamp, newest first
     logs.sort((a, b) => b.timestamp - a.timestamp)
-    
+
     return NextResponse.json({ logs })
   } catch (error) {
     console.error('Failed to get logs:', error)
