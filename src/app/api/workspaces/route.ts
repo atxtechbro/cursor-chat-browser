@@ -4,7 +4,6 @@ import fs from 'fs/promises'
 import { existsSync } from 'fs'
 import sqlite3 from 'sqlite3'
 import { open } from 'sqlite'
-import { getChatTitle, getMessageContent, isChatPanelConversation } from './shared'
 
 export async function GET() {
   try {
@@ -16,7 +15,7 @@ export async function GET() {
 
     if (!existsSync(workspacePath)) {
       console.error('Workspace path does not exist:', workspacePath)
-      return NextResponse.json({ error: 'Workspace path not found' }, { status: 404 })
+      return NextResponse.json([], { status: 404 })
     }
 
     const workspaces = []
@@ -50,61 +49,13 @@ export async function GET() {
             WHERE [key] = 'composer.composerData'
           `)
 
-          // Try to get old chat data format
-          const chatResult = await db.get(`
-            SELECT value FROM ItemTable 
-            WHERE [key] = 'workbench.panel.aichat.view.aichat.chatdata'
-          `)
-
-          let chatCount = 0
           let composerCount = 0
 
-          // Handle old chat data format
-          if (chatResult?.value) {
-            try {
-              const chatData = JSON.parse(chatResult.value)
-              chatCount = chatData.tabs?.length || 0
-              console.log(`Found ${chatCount} chats in old format for ${entry.name}`)
-            } catch (error) {
-              console.error('Error parsing old chat data:', error)
-            }
-          }
-
-          // Handle new composer data format
+          // Handle composer data format
           if (composerResult?.value) {
             console.log(`Found composer data for ${entry.name}`)
             const composerData = JSON.parse(composerResult.value)
-
-            if (existsSync(globalDbPath)) {
-              // Open global DB to get full conversation data
-              const globalDb = await open({
-                filename: globalDbPath,
-                driver: sqlite3.Database
-              })
-
-              // Process each composer entry
-              for (const composer of composerData.allComposers) {
-                const globalResult = await globalDb.get(`
-                  SELECT value FROM cursorDiskKV 
-                  WHERE key = ?
-                `, [`composerData:${composer.composerId}`])
-
-                if (globalResult?.value) {
-                  const fullData = JSON.parse(globalResult.value)
-                  if (isChatPanelConversation(fullData.conversation)) {
-                    chatCount++
-                  } else {
-                    composerCount++
-                  }
-                }
-              }
-
-              await globalDb.close()
-            } else {
-              // If global storage doesn't exist, count all as chats (old behavior)
-              chatCount += composerData.allComposers?.length || 0
-              console.log(`No global storage, counting ${chatCount} as chats for ${entry.name}`)
-            }
+            composerCount = composerData.allComposers?.length || 0
           }
 
           // Try to read workspace.json
@@ -121,7 +72,6 @@ export async function GET() {
             path: dbPath,
             folder: folder,
             lastModified: stats.mtime.toISOString(),
-            chatCount: chatCount,
             composerCount: composerCount
           })
 
@@ -139,10 +89,6 @@ export async function GET() {
     return NextResponse.json(workspaces)
   } catch (error: any) {
     console.error('Failed to get workspaces:', error)
-    return NextResponse.json({
-      error: 'Failed to get workspaces',
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    }, { status: 500 })
+    return NextResponse.json([], { status: 500 })
   }
 } 

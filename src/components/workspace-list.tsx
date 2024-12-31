@@ -14,12 +14,8 @@ import {
 } from "@/components/ui/table"
 import { Loading } from "@/components/ui/loading"
 
-interface WorkspaceWithCounts extends Workspace {
-  composerCount: number;
-}
-
 export function WorkspaceList() {
-  const [workspaces, setWorkspaces] = useState<WorkspaceWithCounts[]>([])
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -27,24 +23,48 @@ export function WorkspaceList() {
     const fetchWorkspaces = async () => {
       try {
         const response = await fetch('/api/workspaces')
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
         const data = await response.json()
-        
+
+        if (!Array.isArray(data)) {
+          console.error('Expected array of workspaces, got:', data)
+          setWorkspaces([])
+          return
+        }
+
         // Fetch composer counts for each workspace
         const workspacesWithCounts = await Promise.all(
           data.map(async (workspace: Workspace) => {
-            const tabsRes = await fetch(`/api/workspaces/${workspace.id}/tabs`)
-            const tabsData = await tabsRes.json()
-            const composerCount = tabsData.composers?.allComposers?.length || 0
-            return {
-              ...workspace,
-              composerCount
+            try {
+              const tabsRes = await fetch(`/api/workspaces/${workspace.id}/tabs`)
+              if (!tabsRes.ok) {
+                console.warn(`Failed to fetch tabs for workspace ${workspace.id}`)
+                return {
+                  ...workspace,
+                  composerCount: 0
+                }
+              }
+              const tabsData = await tabsRes.json()
+              return {
+                ...workspace,
+                composerCount: tabsData.composers?.allComposers?.length || 0
+              }
+            } catch (error) {
+              console.warn(`Error fetching tabs for workspace ${workspace.id}:`, error)
+              return {
+                ...workspace,
+                composerCount: 0
+              }
             }
           })
         )
-        
+
         setWorkspaces(workspacesWithCounts)
       } catch (error) {
         console.error('Failed to fetch workspaces:', error)
+        setWorkspaces([])
       } finally {
         setLoading(false)
       }
@@ -69,18 +89,17 @@ export function WorkspaceList() {
             <TableHead>Workspace Hash</TableHead>
             <TableHead>Folder</TableHead>
             <TableHead>Last Modified</TableHead>
-            <TableHead className="text-right">Chat Logs</TableHead>
             <TableHead className="text-right">Composer Logs</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {workspaces
             .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime())
-            .filter(workspace => workspace.chatCount > 0 || workspace.composerCount > 0)
+            .filter(workspace => workspace.composerCount > 0)
             .map((workspace) => (
               <TableRow key={workspace.id} className="hover:bg-accent/50">
                 <TableCell>
-                  <button 
+                  <button
                     onClick={() => handleWorkspaceClick(workspace.id)}
                     className="text-blue-600 hover:underline font-medium"
                   >
@@ -91,7 +110,7 @@ export function WorkspaceList() {
                   {workspace.folder ? (
                     <div className="flex items-start space-x-2">
                       <span className="text-gray-500 mt-1">📁</span>
-                      <span 
+                      <span
                         className="break-all text-sm"
                         title={workspace.folder}
                       >
@@ -106,9 +125,6 @@ export function WorkspaceList() {
                   {format(new Date(workspace.lastModified), 'PPP p')}
                 </TableCell>
                 <TableCell className="text-right">
-                  {workspace.chatCount}
-                </TableCell>
-                <TableCell className="text-right">
                   {workspace.composerCount}
                 </TableCell>
               </TableRow>
@@ -117,4 +133,4 @@ export function WorkspaceList() {
       </Table>
     </div>
   )
-} 
+}
