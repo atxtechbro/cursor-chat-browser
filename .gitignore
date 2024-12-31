@@ -27,6 +27,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
 
 # vercel
 .vercel
@@ -49,4 +50,3 @@ workspace.json
 # cursor data files
 aichat.data.json
 composer_data.json
-
