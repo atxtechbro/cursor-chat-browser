@@ -1,10 +1,22 @@
-import { WorkspaceList } from "@/components/workspace-list"
+"use client"
+
+import { useState } from 'react'
+import { DashboardContainer } from '@/components/dashboard/DashboardContainer'
+import { Sidebar } from '@/components/dashboard/Sidebar'
+import { MainContent } from '@/components/dashboard/MainContent'
+import { ChatGallery } from '@/components/dashboard/ChatGallery'
+import { WorkspaceList } from '@/components/workspace-list'
 
 export default function ChatPage() {
+  const [viewMode, setViewMode] = useState<'list' | 'grid' | 'timeline'>('list')
+  const [density, setDensity] = useState<'compact' | 'comfortable' | 'spacious'>('comfortable')
+
   return (
-    <div>
-      <h1 className="text-4xl font-bold mb-8">Chat Logs</h1>
-      <WorkspaceList />
-    </div>
+    <DashboardContainer>
+      <Sidebar />
+      <MainContent>
+        <WorkspaceList />
+      </MainContent>
+    </DashboardContainer>
   )
 } 
