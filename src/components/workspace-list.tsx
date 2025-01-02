@@ -114,7 +114,7 @@ export function WorkspaceList() {
                         className="break-all text-sm"
                         title={workspace.folder}
                       >
-                        {workspace.folder}
+                        {workspace.folder.replace(/^file:\/\/\//, '').replace(/%3A/g, ':').replace(/%2F/g, '/')}
                       </span>
                     </div>
                   ) : (
