@@ -13,6 +13,26 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Loading } from "@/components/ui/loading"
+import path from 'path'
+
+function normalizePath(filePath: string) {
+  // Decode the URL-encoded path
+  const decodedPath = filePath
+    .replace(/^file:\/\/\//, '')
+    .replace(/%3A/g, ':')
+    .replace(/%2F/g, '/')
+    .replace(/%5C/g, '\\')
+    .replace(/%20/g, ' ')
+
+  // Get the last two segments of the path for display
+  const segments = decodedPath.split(/[\\/]/)
+  const shortPath = segments.slice(-2).join('\\')
+
+  return {
+    fullPath: decodedPath,
+    shortPath
+  }
+}
 
 export function WorkspaceList() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -110,12 +130,17 @@ export function WorkspaceList() {
                   {workspace.folder ? (
                     <div className="flex items-start space-x-2">
                       <span className="text-gray-500 mt-1">📁</span>
-                      <span
-                        className="break-all text-sm"
-                        title={workspace.folder}
-                      >
-                        {workspace.folder.replace(/^file:\/\/\//, '').replace(/%3A/g, ':').replace(/%2F/g, '/')}
-                      </span>
+                      <div className="flex flex-col">
+                        <span
+                          className="text-sm font-medium"
+                          title={normalizePath(workspace.folder).fullPath}
+                        >
+                          {normalizePath(workspace.folder).shortPath}
+                        </span>
+                        <span className="text-xs text-muted-foreground break-all">
+                          {normalizePath(workspace.folder).fullPath}
+                        </span>
+                      </div>
                     </div>
                   ) : (
                     <span className="text-gray-400 italic">No folder</span>
